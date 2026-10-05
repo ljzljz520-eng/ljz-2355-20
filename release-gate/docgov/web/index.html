@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>文档平台发布清单控制台</title>
+<style>
+:root { --bg:#f5f7fa; --panel:#fff; --line:#e4e7ed; --text:#303133;
+  --muted:#909399; --blue:#409eff; --red:#f56c6c; --green:#67c23a;
+  --orange:#e6a23c; }
+* { box-sizing: border-box; }
+body { margin:0; font:14px/1.6 -apple-system,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif;
+  background:var(--bg); color:var(--text); }
+header { background:#1f2d3d; color:#fff; padding:14px 24px; display:flex;
+  justify-content:space-between; align-items:center; }
+header h1 { font-size:16px; margin:0; font-weight:600; }
+.wrap { max-width:1180px; margin:20px auto; padding:0 16px; display:grid;
+  grid-template-columns:300px 1fr; gap:16px; }
+.panel { background:var(--panel); border:1px solid var(--line); border-radius:6px;
+  padding:16px; }
+.panel h2 { font-size:14px; margin:0 0 12px; color:#1f2d3d; }
+.rel { border:1px solid var(--line); border-radius:4px; padding:10px; margin-bottom:8px;
+  cursor:pointer; }
+.rel.active { border-color:var(--blue); box-shadow:0 0 0 1px var(--blue); }
+.rel .meta { color:var(--muted); font-size:12px; }
+.badge { display:inline-block; padding:1px 8px; border-radius:10px; font-size:12px;
+  color:#fff; margin-left:6px; }
+.b-DRAFT{background:#909399}.b-BLOCKED{background:var(--red)}
+.b-SEALED{background:var(--orange)}.b-APPROVED{background:var(--blue)}
+.b-PREPARED{background:#7c6ef0}.b-PUBLISHED{background:var(--green)}
+table { width:100%; border-collapse:collapse; font-size:13px; }
+th,td { text-align:left; padding:7px 8px; border-bottom:1px solid var(--line);
+  vertical-align:top; }
+th { color:var(--muted); font-weight:600; background:#fafafa; }
+.PASS{color:var(--green);font-weight:600}.BLOCKED{color:var(--red);font-weight:600}
+.waived { color:var(--orange); font-size:12px; }
+button { border:1px solid var(--blue); background:#fff; color:var(--blue);
+  border-radius:4px; padding:5px 12px; cursor:pointer; margin:2px 4px 2px 0; font-size:13px;}
+button.primary{background:var(--blue);color:#fff}
+button.danger{border-color:var(--red);color:var(--red)}
+button:disabled{opacity:.45;cursor:not-allowed}
+.findings { margin:4px 0 0; padding-left:18px; }
+.findings li { margin-bottom:3px; }
+.loc { font-family:ui-monospace,Menlo,Consolas,monospace; background:#fdf6ec;
+  color:#b88230; padding:0 5px; border-radius:3px; font-size:12px; }
+.muted{color:var(--muted);font-size:12px}
+.toast { position:fixed; right:20px; bottom:20px; max-width:420px; background:#1f2d3d;
+  color:#fff; padding:10px 14px; border-radius:6px; font-size:13px; display:none;
+  white-space:pre-wrap; }
+.toast.err{background:var(--red)}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px}
+input,select,textarea{font:inherit;padding:5px 8px;border:1px solid var(--line);
+  border-radius:4px;}
+summary{cursor:pointer;color:var(--blue);font-size:12px;margin-top:4px}
+code.k{font-family:ui-monospace,Menlo,monospace;font-size:12px;color:#5b6b7a}
+</style>
+</head>
+<body>
+<header>
+  <h1>📋 文档平台发布清单控制台</h1>
+  <div id="active" class="muted" style="color:#c0ccda">加载中…</div>
+</header>
+<div class="wrap">
+  <div>
+    <div class="panel">
+      <h2>发布候选</h2>
+      <div id="releases"><div class="muted">加载中…</div></div>
+    </div>
+    <div class="panel" style="margin-top:16px">
+      <h2>外部变更（改变依赖指纹）</h2>
+      <div class="row"><input id="fbPage" placeholder="页面路径（* 全站）" style="width:140px"/>
+        <select id="fbSev"><option>BLOCKER</option><option>MAJOR</option><option>MINOR</option></select></div>
+      <div class="row"><input id="fbMsg" placeholder="反馈摘要" style="width:200px"/></div>
+      <button onclick="addFeedback()">登记阻断反馈</button>
+      <hr style="border:none;border-top:1px solid var(--line);margin:10px 0"/>
+      <div class="row"><input id="assetPath" placeholder="assets/x.png" style="width:140px"/>
+        <select id="lic"><option>LICENSED</option><option>REVOKED</option><option>UNKNOWN</option></select></div>
+      <button onclick="setLic()">设置素材授权状态</button>
+    </div>
+  </div>
+  <div class="panel">
+    <div id="detail"><div class="muted">选择左侧候选查看清单与阻断项定位。</div></div>
+  </div>
+</div>
+<div id="toast" class="toast"></div>
+<script src="/app.js"></script>
+</body>
+</html>
