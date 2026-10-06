@@ -55,3 +55,14 @@ npm run docs:preview
 examples/button/basic.vue
 :::
 ```
+
+## 🚦 发布门禁（release-gate）
+
+文档平台的发布清单与发布代次治理系统位于 [`release-gate/`](./release-gate/)：
+统一候选 manifest、逐项证据/豁免/签准落库、依赖指纹（重命名→断链、撤权→构建资格）、
+长事务校验防“拼绿灯”、产物/搜索索引/路由表同代次原子切换、部分失败回滚旧版。
+
+```bash
+cd release-gate && python3 run_tests.py     # 18 个验收测试
+./rgctl serve --port 8080                    # 发布门禁 UI/API
+```

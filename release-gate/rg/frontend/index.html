@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>文档平台发布门禁</title>
+<style>
+  :root{--bg:#f5f7fa;--card:#fff;--line:#e4e7ed;--ok:#67c23a;--fail:#f56c6c;
+        --warn:#e6a23c;--info:#909399;--pri:#409eff;--ink:#303133}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+       background:var(--bg);color:var(--ink)}
+  header{background:#1f2d3d;color:#fff;padding:16px 24px;display:flex;
+         align-items:center;gap:16px}
+  header h1{font-size:18px;margin:0;font-weight:600}
+  .wrap{max-width:1080px;margin:24px auto;padding:0 16px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:8px;
+        padding:18px 20px;margin-bottom:18px;box-shadow:0 1px 3px rgba(0,0,0,.04)}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  input,button,select{font:inherit;padding:7px 12px;border:1px solid var(--line);
+        border-radius:6px;background:#fff;color:var(--ink)}
+  button{cursor:pointer;background:var(--pri);color:#fff;border-color:var(--pri)}
+  button.ghost{background:#fff;color:var(--ink)}
+  button:disabled{opacity:.5;cursor:not-allowed}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line);
+        vertical-align:top}
+  th{color:var(--info);font-weight:600;background:#fafafa}
+  .tag{display:inline-block;padding:2px 9px;border-radius:10px;font-size:12px;
+       color:#fff}
+  .tag.pass{background:var(--ok)} .tag.fail{background:var(--fail)}
+  .tag.waived{background:var(--warn)} .tag.blocked{background:var(--info)}
+  .tag.commited,.tag.committed{background:var(--ok)}
+  .tag.aborted_drift{background:var(--fail)}
+  .mono{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;
+        word-break:break-all;color:#606266}
+  details summary{cursor:pointer;color:var(--pri);font-size:12px}
+  pre{background:#0f172a;color:#d7e0ee;padding:12px;border-radius:6px;
+      overflow:auto;max-height:340px;font-size:12px}
+  .banner{padding:12px 16px;border-radius:8px;margin-bottom:14px;font-weight:600}
+  .banner.go{background:#f0f9eb;border:1px solid #e1f3d8;color:#529b2e}
+  .banner.stop{background:#fef0f0;border:1px solid #fde2e2;color:#c45656}
+  .muted{color:var(--info);font-size:12px}
+  .kv{display:grid;grid-template-columns:170px 1fr;gap:4px 12px;font-size:13px}
+  .kv .k{color:var(--info)}
+  .pill{background:#ecf5ff;border:1px #d9ecff solid;color:#409eff;border-radius:10px;
+        padding:2px 10px;font-size:12px}
+  .stale{color:var(--warn)}
+</style>
+</head>
+<body>
+<header>
+  <h1>📘 文档平台发布门禁</h1>
+  <span class="muted" style="color:#a6a6a6">统一候选 manifest · 长事务指纹 · 双人签准 · 同代次切换</span>
+  <span id="pubgen" class="pill" style="margin-left:auto"></span>
+</header>
+<div class="wrap">
+
+  <div class="card">
+    <div class="row">
+      <select id="releaseSel" style="min-width:240px"></select>
+      <input id="newId" placeholder="新发布ID，如 rel-2026.10" />
+      <input id="siteDir" placeholder="候选站点目录（tests/fixtures/...）" style="min-width:300px" />
+      <button onclick="createRel()">建候选</button>
+      <button class="ghost" onclick="loadGate()">刷新</button>
+    </div>
+    <div class="row" style="margin-top:12px">
+      <button onclick="evaluateRel()">① 评估（长事务）</button>
+      <input id="approver1" placeholder="签准人A" style="width:130px" />
+      <button onclick="approveRel('a')">②A 签准</button>
+      <input id="approver2" placeholder="签准人B" style="width:130px" />
+      <button onclick="approveRel('b')">②B 签准</button>
+      <input id="distDir" placeholder="dist目录（默认站点/dist）" style="min-width:240px" />
+      <input id="idemKey" placeholder="幂等键（可空）" style="width:170px" />
+      <button onclick="publishRel()">③ 发布切换</button>
+      <button class="ghost" onclick="rollback()">↩ 回滚上一代</button>
+    </div>
+    <div id="msg" style="margin-top:10px"></div>
+  </div>
+
+  <div id="banner"></div>
+
+  <div class="card" id="metaCard" style="display:none">
+    <div class="kv" id="meta"></div>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0">发布清单 · 逐项证据 / 豁免 / 状态</h3>
+    <table>
+      <thead><tr><th style="width:150px">检查项</th><th style="width:90px">状态</th>
+        <th>结论与阻断定位</th><th style="width:110px">操作</th></tr></thead>
+      <tbody id="items"></tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0">签准</h3>
+    <div id="approvals"></div>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0">公开资料一致性</h3>
+    <pre id="publicJson"></pre>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0">审计追踪</h3>
+    <pre id="auditJson" style="max-height:220px"></pre>
+  </div>
+</div>
+
+<script>
+let cur = null;
+const $ = id => document.getElementById(id);
+
+async function api(path, method="GET", body){
+  const opt = {method, headers:{"Content-Type":"application/json"}};
+  if(body) opt.body = JSON.stringify(body);
+  const r = await fetch(path, opt);
+  const j = await r.json();
+  if(!r.ok) throw new Error(j.error || (r.status+" error"));
+  return j;
+}
+function esc(s){return String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))}
+function flash(t, ok=true){$("msg").innerHTML =
+  `<div class="banner ${ok?'go':'stop'}">${esc(t)}</div>`}
+
+async function loadReleases(){
+  const rs = await api("/api/releases");
+  const sel = $("releaseSel");
+  sel.innerHTML = rs.map(r=>`<option value="${r.id}">${esc(r.id)} · ${esc(r.status)}</option>`).join("")
+    || `<option value="">(无)</option>`;
+  if(cur) sel.value = cur;
+  try { const p = await api("/api/public");
+    $("pubgen").textContent = p.active_generation ? `活动代次 gen-${p.active_generation}` : "尚未发布";
+  } catch(e){}
+}
+$("releaseSel").addEventListener("change", e=>{cur=e.target.value;loadGate()});
+
+async function createRel(){
+  const id = $("newId").value.trim(), site = $("siteDir").value.trim();
+  if(!id||!site) return flash("需要发布ID和站点目录", false);
+  await api("/api/releases","POST",{release_id:id, site_dir:site});
+  cur=id; $("newId").value=""; await loadReleases(); await loadGate();
+  flash("候选 manifest 已建立："+id);
+}
+async function evaluateRel(){
+  if(!cur) return;
+  try{ const r = await api("/api/evaluate/"+cur,"POST",{actor:"qa"});
+    flash(r.drifted ? "评估中止：评估期间源发生变更（漂移），请重新评估" :
+      (r.passed?"评估通过（全部绿灯）":"评估完成，存在阻断项（见下表）"), !r.drifted);
+  }catch(e){flash(e.message,false)}
+  await loadGate();
+}
+async function approveRel(which){
+  const who = $(which==="a"?"approver1":"approver2").value.trim();
+  if(!who||!cur) return flash("填写签准人",false);
+  try{ const r = await api("/api/approve/"+cur,"POST",{approver:who});
+    flash(`有效签准 ${r.valid_approvals.length}/2`);
+  }catch(e){flash(e.message,false)}
+  await loadGate();
+}
+async function publishRel(){
+  if(!cur)return;
+  const dist = $("distDir").value.trim() ||
+    ($("siteDir").value.trim() ? $("siteDir").value.trim()+"/dist" : "");
+  try{
+    const r = await api("/api/publish/"+cur,"POST",
+      {dist_dir:dist, idempotency_key:$("idemKey").value.trim()||null});
+    flash(r.duplicate ? "重复发布请求：返回既有结果 gen-"+r.generation :
+      "已切换到 gen-"+r.generation+"（产物/索引/路由表同代次）");
+  }catch(e){flash(e.message,false)}
+  await loadGate(); await loadReleases();
+}
+async function rollback(){
+  try{ const r = await api("/api/rollback","POST",{});
+    flash(`已回滚 gen-${r.from} → gen-${r.rolled_back_to}`);
+  }catch(e){flash(e.message,false)}
+  await loadGate(); await loadReleases();
+}
+async function waive(name){
+  const reason = prompt("为阻断项【"+name+"】填写豁免理由：");
+  if(!reason)return;
+  try{ await api("/api/waiver/"+cur,"POST",{item:name,reason,approver:"qa-lead"});
+    flash("已登记豁免；请重新评估使其生效");
+  }catch(e){flash(e.message,false)}
+  await loadGate();
+}
+
+function tag(s){const m={pass:"pass",fail:"fail",waived:"waived",blocked:"blocked"};
+  return `<span class="tag ${m[s]||s}">${ {pass:"通过",fail:"阻断",waived:"已豁免",blocked:"被阻塞"}[s]||esc(s)}</span>`}
+
+async function loadGate(){
+  if(!cur) return;
+  try{
+    const g = await api("/api/gate/"+cur);
+    if(!g.evaluated){
+      $("banner").innerHTML = `<div class="banner stop">尚未评估：点击「评估（长事务）」</div>`;
+      $("items").innerHTML=""; $("metaCard").style.display="none"; return;
+    }
+    const go = g.effective_pass && g.state==="committed";
+    $("banner").innerHTML = go
+      ? `<div class="banner go">门禁开启：无阻断项${g.waived.length?`（含 ${g.waived.length} 项豁免）`:""}，可双人签准后发布</div>`
+      : `<div class="banner stop">发布被阻断：${g.blockers.length} 个阻断项（前端可逐项定位，见证据）</div>`;
+
+    $("metaCard").style.display="block";
+    $("meta").innerHTML = [
+      ["评估运行 #",g.run_id],["事务状态",g.state],
+      ["聚合依赖指纹",`<span class="mono">${esc(g.aggregate_fingerprint.slice(0,24))}…</span>`],
+      ["预检树 checksum",`<span class="mono">${esc((g.pre_tree_checksum||"-").slice(0,20))}…</span>`],
+      ["提交前 checksum",`<span class="mono">${esc((g.post_tree_checksum||"-").slice(0,20))}…</span>`],
+      ["漂移",g.pre_tree_checksum===g.post_tree_checksum?"否（可复验）":"是 → 事务中止"],
+    ].map(([k,v])=>`<div class="k muted">${k}</div><div>${v}</div>`).join("");
+
+    $("items").innerHTML = g.items.map(it=>{
+      let ev; try{ev=JSON.stringify(JSON.parse(it.evidence),null,1)}catch(e){ev=it.evidence}
+      return `<tr>
+        <td><b>${esc(it.title)}</b><div class="muted mono">${esc(it.name)}</div></td>
+        <td>${tag(it.status)}</td>
+        <td>${esc(it.detail||"")}
+          <details><summary>逐项证据 / 依赖指纹</summary><pre>${esc(ev)}</pre>
+          <div class="muted mono">dep-fprint: ${esc((it.depends_fprint||"").slice(0,32))}…
+          ${it.waiver_id?` · 豁免 #${it.waiver_id}`:""}</div></details></td>
+        <td>${it.status==="fail"?`<button class="ghost" onclick="waive('${it.name}')">申请豁免</button>`:""}</td>
+      </tr>`}).join("");
+
+    const a = g.approvals || {};
+    $("approvals").innerHTML =
+      `<div>需要 ${a.required} 名不同签准人，当前有效：${a.approved?
+        `<span class="tag pass">已满足</span>`:`<span class="tag fail">${a.valid_approvals.length}/${a.required}</span>`}</div>
+       <div class="muted" style="margin-top:6px">有效：${(a.valid_approvals||[]).map(x=>esc(x.approver)).join("、")||"无"}</div>
+       ${(a.stale_approvals||[]).length?
+         `<div class="stale" style="margin-top:6px">⚠ 以下签准因签准后相关变更而失效，必须重新评估与签准：${
+           a.stale_approvals.map(x=>esc(x.approver)).join("、")}</div>`:""}`;
+
+    $("publicJson").textContent = JSON.stringify(g.public,null,2);
+    const audit = await api("/api/audit?release="+cur);
+    $("auditJson").textContent = JSON.stringify(
+      audit.map(x=>({ts:x.ts,actor:x.actor,action:x.action,payload:x.payload})),null,1);
+  }catch(e){flash(e.message,false)}
+}
+(async function init(){
+  await loadReleases();
+  if($("releaseSel").value){cur=$("releaseSel").value;loadGate();}
+  setInterval(loadReleases, 5000);
+})();
+</script>
+</body>
+</html>
